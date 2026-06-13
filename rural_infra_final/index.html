@@ -228,6 +228,70 @@
     .input-row, .actions { grid-template-columns: 1fr; }
     .secondary-btn { width: 100%; }
   }
+  @media (max-width: 480px) {
+    body {
+      padding: .75rem .55rem;
+    }
+
+    .container {
+      border-radius: 16px;
+      padding: 1rem;
+    }
+
+    .header h1 {
+      font-size: 25px;
+      line-height: 1.18;
+      letter-spacing: -0.025em;
+    }
+
+    .header p {
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .sdg-badge {
+      width: 100%;
+      justify-content: center;
+      text-align: center;
+      font-size: 11px;
+      padding: 8px 10px;
+    }
+
+    textarea {
+      min-height: 120px;
+    }
+
+    .examples {
+      display: grid;
+      grid-template-columns: 1fr;
+    }
+
+    .ex-btn {
+      width: 100%;
+      text-align: center;
+    }
+
+    .tag {
+      width: 100%;
+      text-align: center;
+      border-radius: 12px;
+    }
+
+    .result-card {
+      padding: 14px;
+      border-radius: 14px;
+    }
+
+    .sol-item {
+      padding: 12px;
+    }
+
+    .analyze-btn,
+    .secondary-btn {
+      width: 100%;
+      min-height: 46px;
+    }
+  }
 </style>
 </head>
 <body>
@@ -443,12 +507,52 @@ async function analyze() {
 }
 
 async function copyResults() {
-  if (!latestPlainText) return;
+  const output = document.getElementById('output');
+  const copyBtn = document.getElementById('copy-btn');
+
+  const textToCopy = (latestPlainText && latestPlainText.trim())
+    ? latestPlainText.trim()
+    : (output ? output.innerText.trim() : '');
+
+  if (!textToCopy) {
+    alert('No result available to copy.');
+    return;
+  }
+
   try {
-    await navigator.clipboard.writeText(latestPlainText);
-    document.getElementById('output').insertAdjacentHTML('beforeend', '<div class="notice-msg">Result copied successfully.</div>');
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(textToCopy);
+    } else {
+      const tempTextarea = document.createElement('textarea');
+      tempTextarea.value = textToCopy;
+      tempTextarea.setAttribute('readonly', '');
+      tempTextarea.style.position = 'fixed';
+      tempTextarea.style.left = '-9999px';
+      tempTextarea.style.top = '-9999px';
+      document.body.appendChild(tempTextarea);
+      tempTextarea.focus();
+      tempTextarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(tempTextarea);
+    }
+
+    if (copyBtn) {
+      const oldText = copyBtn.textContent;
+      copyBtn.textContent = 'Copied!';
+      setTimeout(() => {
+        copyBtn.textContent = oldText || 'Copy Result';
+      }, 1500);
+    }
+
+    const oldNotice = document.getElementById('copy-notice');
+    if (oldNotice) oldNotice.remove();
+
+    output.insertAdjacentHTML(
+      'beforeend',
+      '<div class="notice-msg" id="copy-notice">Result copied successfully.</div>'
+    );
   } catch (e) {
-    document.getElementById('output').insertAdjacentHTML('beforeend', '<div class="error-msg">Copy failed. Please select and copy manually.</div>');
+    alert('Copy failed. Please select the result and copy manually.');
   }
 }
 </script>
