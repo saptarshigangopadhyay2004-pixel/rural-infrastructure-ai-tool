@@ -11,88 +11,149 @@ exports.handler = async function(event) {
   }
 
   if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method not allowed' })
+    };
   }
 
   try {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GROQ_API_KEY;
+
     if (!apiKey) {
-      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Missing GEMINI_API_KEY environment variable.' }) };
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({
+          error: 'Missing GROQ_API_KEY environment variable.'
+        })
+      };
     }
 
     const body = JSON.parse(event.body || '{}');
+
     const region = String(body.region || 'Not specified').slice(0, 120);
     const infra = String(body.infra || 'Not specified').slice(0, 120);
     const desc = String(body.desc || '').trim().slice(0, 2000);
 
     if (!desc || desc.length < 30) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Please provide a longer problem description.' }) };
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({
+          error: 'Please provide a longer problem description.'
+        })
+      };
     }
 
-    const prompt = `You are an expert in rural infrastructure development and SDG 9 (Industry, Innovation, and Infrastructure). Analyze the following rural infrastructure problem and provide a structured response.
+    const prompt = `You are an expert in rural infrastructure development and SDG 9.
 
 Context:
 - Region type: ${region}
 - Infrastructure domain: ${infra}
 - Problem description: ${desc}
 
-Respond ONLY in this exact JSON format. Do not include markdown, code fences, or extra text:
+Respond ONLY in valid JSON format:
+
 {
   "problem_summary": "One clear sentence summarizing the core problem",
   "root_causes": ["cause 1", "cause 2", "cause 3"],
-  "impact": "2-3 sentences on how this affects the community economically and socially",
+  "impact": "2-3 sentences on how this affects the community",
   "solutions": [
-    {"title": "Short-term (0-6 months)", "description": "Immediate actionable step"},
-    {"title": "Medium-term (6-24 months)", "description": "Infrastructure intervention"},
-    {"title": "Long-term (2-5 years)", "description": "Sustainable systemic solution"}
+    {
+      "title": "Short-term (0-6 months)",
+      "description": "Immediate actionable step"
+    },
+    {
+      "title": "Medium-term (6-24 months)",
+      "description": "Infrastructure intervention"
+    },
+    {
+      "title": "Long-term (2-5 years)",
+      "description": "Sustainable solution"
+    }
   ],
-  "innovation_angle": "One innovative technology or approach that could help",
-  "sdg9_alignment": "How this solution aligns with SDG 9 targets",
+  "innovation_angle": "One innovative technology or approach",
+  "sdg9_alignment": "How this aligns with SDG 9",
   "stakeholders": ["stakeholder 1", "stakeholder 2", "stakeholder 3"],
-  "estimated_impact": "Quantified potential impact if solution is implemented"
+  "estimated_impact": "Expected impact"
 }`;
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: prompt }]
-          }
-        ],
-        generationConfig: {
+    const response = await fetch(
+      "https://api.groq.com/openai/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
           temperature: 0.4,
-          maxOutputTokens: 1200,
-          responseMimeType: 'application/json'
-        }
-      })
-    });
+          messages: [
+            {
+              role: "user",
+              content: prompt
+            }
+          ]
+        })
+      }
+    );
 
-    const aiData = await response.json();
+    const data = await response.json();
+
     if (!response.ok) {
       return {
         statusCode: response.status,
         headers,
-        body: JSON.stringify({ error: aiData.error?.message || 'AI API request failed.' })
+        body: JSON.stringify({
+          error: data.error?.message || "Groq API request failed."
+        })
       };
     }
 
-    const text = aiData.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('').trim();
+    const text = data.choices?.[0]?.message?.content?.trim();
+
     if (!text) {
-      return { statusCode: 502, headers, body: JSON.stringify({ error: 'Empty AI response.' }) };
+      return {
+        statusCode: 502,
+        headers,
+        body: JSON.stringify({
+          error: "Empty AI response."
+        })
+      };
     }
 
     let parsed;
+
     try {
-      parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
-    } catch (error) {
-      return { statusCode: 502, headers, body: JSON.stringify({ error: 'AI returned invalid JSON. Please try again.' }) };
+      parsed = JSON.parse(
+        text.replace(/```json|```/g, '').trim()
+      );
+    } catch (err) {
+      return {
+        statusCode: 502,
+        headers,
+        body: JSON.stringify({
+          error: "AI returned invalid JSON."
+        })
+      };
     }
 
-    return { statusCode: 200, headers, body: JSON.stringify(parsed) };
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify(parsed)
+    };
+
   } catch (error) {
-    return { statusCode: 500, headers, body: JSON.stringify({ error: error.message || 'Server error.' }) };
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({
+        error: error.message || "Server error."
+      })
+    };
   }
 };
